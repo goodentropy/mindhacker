@@ -1,0 +1,294 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  MindHacker - Emotionally Intelligent Education System
+  SAM Template for API, Lambda functions, DynamoDB, S3, and CloudFront
+
+Globals:
+  Function:
+    Runtime: python3.12
+    MemorySize: 256
+    Timeout: 30
+    CodeUri: ../backend/
+    Layers:
+      - !Ref SharedDepsLayer
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref SessionsTable
+        CURRICULUM_BUCKET: !Ref CurriculumBucket
+        BEDROCK_MODEL_ID: us.anthropic.claude-sonnet-4-20250514-v1:0
+
+Resources:
+  # ---------------------------------------------------------------------------
+  # API Gateway - HTTP API with CORS
+  # ---------------------------------------------------------------------------
+  MindHackerApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: prod
+      CorsConfiguration:
+        AllowOrigins:
+          - '*'
+        AllowHeaders:
+          - '*'
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        MaxAge: 600
+
+  # ---------------------------------------------------------------------------
+  # Lambda Layer - Shared Python Dependencies
+  # ---------------------------------------------------------------------------
+  SharedDepsLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: mindhacker-shared-deps
+      Description: Shared Python dependencies for MindHacker Lambda functions
+      ContentUri: ../backend/layers/shared-deps/
+      CompatibleRuntimes:
+        - python3.12
+      RetentionPolicy: Delete
+
+  # ---------------------------------------------------------------------------
+  # Lambda Functions
+  # ---------------------------------------------------------------------------
+  ChatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: mindhacker-chat
+      Handler: handlers/chat.lambda_handler
+      Description: Handles chat interactions with emotionally intelligent responses
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        PostChat:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MindHackerApi
+            Path: /api/chat
+            Method: POST
+
+  UploadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: mindhacker-upload
+      Handler: handlers/upload.lambda_handler
+      Description: Handles curriculum file uploads
+      Timeout: 120
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        PostUpload:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MindHackerApi
+            Path: /api/upload
+            Method: POST
+
+  SessionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: mindhacker-session
+      Handler: handlers/session.lambda_handler
+      Description: Manages learning sessions
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        PostSession:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MindHackerApi
+            Path: /api/session
+            Method: POST
+        GetSession:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MindHackerApi
+            Path: /api/session/{id}
+            Method: GET
+
+  ProgressFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: mindhacker-progress
+      Handler: handlers/progress.lambda_handler
+      Description: Retrieves learner progress data
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        GetProgress:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MindHackerApi
+            Path: /api/progress/{id}
+            Method: GET
+
+  # ---------------------------------------------------------------------------
+  # DynamoDB Table
+  # ---------------------------------------------------------------------------
+  SessionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: mindhacker-sessions
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+  # ---------------------------------------------------------------------------
+  # S3 Buckets
+  # ---------------------------------------------------------------------------
+  CurriculumBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Statement:
+          - Sid: AllowCloudFrontOAI
+            Effect: Allow
+            Principal:
+              CanonicalUser: !GetAtt CloudFrontOriginAccessIdentity.S3CanonicalUserId
+            Action: s3:GetObject
+            Resource: !Sub '${FrontendBucket.Arn}/*'
+
+  # ---------------------------------------------------------------------------
+  # CloudFront Distribution
+  # ---------------------------------------------------------------------------
+  CloudFrontOriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: OAI for MindHacker frontend bucket
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: FrontendS3Origin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${CloudFrontOriginAccessIdentity}'
+        DefaultCacheBehavior:
+          TargetOriginId: FrontendS3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          Compress: true
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 10
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+
+  # ---------------------------------------------------------------------------
+  # IAM Role for Lambda Functions
+  # ---------------------------------------------------------------------------
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: mindhacker-lambda-execution-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: mindhacker-lambda-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: CloudWatchLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: 'arn:aws:logs:*:*:*'
+              - Sid: DynamoDBAccess
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt SessionsTable.Arn
+                  - !Sub '${SessionsTable.Arn}/index/*'
+              - Sid: S3Access
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt CurriculumBucket.Arn
+                  - !Sub '${CurriculumBucket.Arn}/*'
+              - Sid: BedrockAccess
+                Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource: '*'
+
+Outputs:
+  ApiUrl:
+    Description: URL of the MindHacker HTTP API
+    Value: !Sub 'https://${MindHackerApi}.execute-api.${AWS::Region}.amazonaws.com/prod'
+
+  CloudFrontUrl:
+    Description: URL of the CloudFront distribution for the frontend
+    Value: !Sub 'https://${CloudFrontDistribution.DomainName}'
+
+  CurriculumBucketName:
+    Description: Name of the S3 bucket for uploaded curricula
+    Value: !Ref CurriculumBucket
