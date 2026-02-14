@@ -29,6 +29,12 @@ def _to_converse_format(simple_messages: list) -> list:
 
 def lambda_handler(event, context):
     """POST /api/chat - Main chat endpoint with orchestrator loop."""
+    # Handle CORS preflight (needed for Lambda Function URL)
+    method = (event.get("requestContext", {}).get("http", {}).get("method", "")
+              or event.get("httpMethod", ""))
+    if method == "OPTIONS":
+        return _response(200, {})
+
     try:
         raw_body = event.get("body", "{}")
         logger.info("Chat: raw body length=%d", len(raw_body) if raw_body else 0)
