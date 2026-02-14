@@ -75,6 +75,27 @@ export function isDemoSession(sessionId: string): boolean {
   return sessionId.startsWith(DEMO_SESSION_PREFIX);
 }
 
+/** Create a therapist session with no curriculum (Dr. Mindhacker mode). */
+export function createTherapistSession(): UploadResponse {
+  const curriculum: Curriculum = { subject: 'Dr. Mindhacker', nodes: [] };
+  const sessionId = generateDemoId();
+
+  const sessionData: SessionData = {
+    session_id: sessionId,
+    curriculum,
+    messages: [],
+    emotional_history: [],
+    completed_nodes: [],
+    current_node_id: '',
+  };
+
+  if (typeof window !== 'undefined') {
+    sessionStorage.setItem(`${STORAGE_KEY}_${sessionId}`, JSON.stringify(sessionData));
+  }
+
+  return { session_id: sessionId, curriculum };
+}
+
 /** Load demo session data from sessionStorage. */
 export function loadDemoSession(sessionId: string): SessionData | null {
   if (typeof window === 'undefined') return null;

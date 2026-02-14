@@ -9,18 +9,14 @@ export default function CurriculumGraph({
   currentNodeId,
   onNodeClick,
   onViewContent,
-  onRemix,
 }: {
   nodes: CurriculumNode[];
   completedNodes: string[];
   currentNodeId?: string;
   onNodeClick?: (node: CurriculumNode) => void;
   onViewContent?: (node: CurriculumNode) => void;
-  onRemix?: (node: CurriculumNode, prompt?: string) => void;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [remixNodeId, setRemixNodeId] = useState<string | null>(null);
-  const [remixPrompt, setRemixPrompt] = useState('');
 
   if (nodes.length === 0) return null;
 
@@ -126,55 +122,7 @@ export default function CurriculumGraph({
                   </svg>
                   Teach Me
                 </button>
-                {onRemix && (
-                  <button
-                    type="button"
-                    onClick={() => { setRemixNodeId(remixNodeId === node.id ? null : node.id); setRemixPrompt(''); }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg glass text-[11px] font-semibold text-purple-600/70 hover:text-purple-600 transition-colors"
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M16 3h5v5" />
-                      <path d="M8 3H3v5" />
-                      <path d="M12 22v-8.3a4 4 0 0 0-1.172-2.872L3 3" />
-                      <path d="m15 9 6-6" />
-                    </svg>
-                    Remix
-                  </button>
-                )}
               </div>
-              {/* Remix prompt input */}
-              {remixNodeId === node.id && onRemix && (
-                <div className="mt-3 flex items-center gap-2 animate-fade-in-up">
-                  <input
-                    type="text"
-                    value={remixPrompt}
-                    onChange={e => setRemixPrompt(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        onRemix(node, remixPrompt || undefined);
-                        setRemixNodeId(null);
-                        setRemixPrompt('');
-                        setExpandedId(null);
-                      }
-                    }}
-                    placeholder="e.g., I like music, sports, cooking..."
-                    className="flex-1 text-xs px-3 py-2 rounded-lg bg-white/60 backdrop-blur-sm border border-purple-200/50 outline-none focus:border-purple-400/60 text-foreground placeholder:text-foreground/30"
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onRemix(node, remixPrompt || undefined);
-                      setRemixNodeId(null);
-                      setRemixPrompt('');
-                      setExpandedId(null);
-                    }}
-                    className="px-3 py-2 rounded-lg bg-purple-500/80 text-white text-[11px] font-semibold hover:bg-purple-500 transition-colors"
-                  >
-                    Go
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         );
