@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { sendMessage, getSession } from './api';
-import { isDemoSession, loadDemoSession } from './demo';
+import { isDemoSession, loadDemoSession, ensureBackendSession } from './demo';
 import { Message, EmotionalState, AgentLogEntry, Curriculum } from './types';
 
 export function useChat(sessionId: string) {
@@ -24,7 +24,8 @@ export function useChat(sessionId: string) {
     setError(null);
 
     try {
-      const res = await sendMessage(sessionId, text);
+      const effectiveSessionId = await ensureBackendSession(sessionId);
+      const res = await sendMessage(effectiveSessionId, text);
       const assistantMsg: Message = { role: 'assistant', content: res.response, timestamp: new Date().toISOString() };
       setMessages(prev => [...prev, assistantMsg]);
 

@@ -1,4 +1,5 @@
 import { Curriculum, CurriculumNode, UploadResponse, SessionData } from './types';
+import { createBackendSession } from './api';
 
 const DEMO_SESSION_PREFIX = 'demo-';
 const STORAGE_KEY = 'mindhacker_demo_session';
@@ -106,4 +107,26 @@ export function loadDemoSession(sessionId: string): SessionData | null {
   } catch {
     return null;
   }
+}
+
+/** Cache of demo session IDs to their backend session IDs. */
+const backendSessionCache = new Map<string, string>();
+
+/**
+ * Ensure a demo session has a corresponding backend session in DynamoDB.
+ * For non-demo sessions, returns the ID as-is.
+ * For demo sessions, lazily creates a backend session and caches the mapping.
+ */
+export async function ensureBackendSession(sessionId: string): Promise<string> {
+  if (!isDemoSession(sessionId)) return sessionId;
+
+  const cached = backendSessionCache.get(sessionId);
+  if (cached) return cached;
+
+  const demo = loadDemoSession(sessionId);
+  if (!demo?.curriculum) throw new Error('Session data not found');
+
+  const backendSession = await createBackendSession(demo.curriculum);
+  backendSessionCache.set(sessionId, backendSession.session_id);
+  return backendSession.session_id;
 }

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { CurriculumNode } from '@/lib/types';
 import { sendMessage } from '@/lib/api';
+import { ensureBackendSession } from '@/lib/demo';
 
 type Phase = 'select' | 'prompt' | 'result';
 
@@ -47,10 +48,14 @@ export default function RemixPanel({
     setIsLoading(true);
     setError(null);
 
-    const message = `Remix the module '${selectedNode.title}' for me. Here's how I want to learn it: ${prompt.trim()}. Transform the curriculum content into this format while preserving all the key facts and learning objectives.`;
+    const contentBlock = selectedNode.content
+      ? `\n\nHere is the module content to remix:\n${selectedNode.content}`
+      : '';
+    const message = `Remix the module '${selectedNode.title}' for me. Here's how I want to learn it: ${prompt.trim()}. Transform the curriculum content into this format while preserving all the key facts and learning objectives.${contentBlock}`;
 
     try {
-      const res = await sendMessage(sessionId, message);
+      const effectiveSessionId = await ensureBackendSession(sessionId);
+      const res = await sendMessage(effectiveSessionId, message);
       setResult(res.response);
       setPhase('result');
     } catch (err) {

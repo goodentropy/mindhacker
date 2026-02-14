@@ -1,4 +1,4 @@
-import { ChatResponse, UploadResponse, SessionData, ProgressData } from './types';
+import { ChatResponse, UploadResponse, SessionData, ProgressData, Curriculum } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 const FETCH_TIMEOUT_MS = 120_000;
@@ -51,6 +51,13 @@ export async function uploadCurriculumPdf(pdfBase64: string, subject: string): P
 
 export async function getSession(sessionId: string): Promise<SessionData> {
   return fetchAPI<SessionData>(`/api/session/${sessionId}`);
+}
+
+export async function createBackendSession(curriculum: Curriculum): Promise<SessionData> {
+  return fetchAPI<SessionData>('/api/session', {
+    method: 'POST',
+    body: JSON.stringify({ curriculum }),
+  });
 }
 
 export async function getProgress(sessionId: string): Promise<ProgressData> {
