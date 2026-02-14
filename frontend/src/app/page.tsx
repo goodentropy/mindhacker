@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import CurriculumUpload from '@/components/CurriculumUpload';
 import { createDemoSession, createTherapistSession } from '@/lib/demo';
@@ -16,6 +16,13 @@ export default function Home() {
   const [sessionId, setSessionId] = useState('');
   const [error, setError] = useState('');
   const [targetTab, setTargetTab] = useState<'chat' | 'remix'>('chat');
+  const uploadRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (showUpload && uploadRef.current) {
+      uploadRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [showUpload, showManualUpload, curriculum]);
 
   const handleUploadComplete = (newSessionId: string, newCurriculum: Curriculum) => {
     setCurriculum(newCurriculum);
@@ -74,7 +81,7 @@ export default function Home() {
         <section className="pt-12 pb-8 text-center">
           <div className="animate-slide-up inline-flex items-center gap-2 px-4 py-1.5 glass rounded-full text-xs font-semibold tracking-wide uppercase mb-5">
             <span className="w-1.5 h-1.5 rounded-full bg-amber animate-status-blink" />
-            <span className="gradient-text-static">5 AI Agents &middot; Real-time Adaptation &middot; Trauma Informed</span>
+            <span className="gradient-text-static">Real-time Adaptation &middot; Trauma Informed &middot; Emotionally Adaptive</span>
           </div>
           <h2 className="animate-slide-up text-4xl md:text-5xl font-heading font-extrabold text-foreground mb-4 tracking-tight leading-[1.1]" style={{ animationDelay: '60ms' }}>
             Three ways to{' '}
@@ -160,7 +167,7 @@ export default function Home() {
         </section>
 
         {/* ── CTA / Upload section ── */}
-        <section className="pb-20">
+        <section ref={uploadRef} className="pb-20">
           {/* Sample picker — shown when showUpload is true and no curriculum parsed yet */}
           {showUpload && !curriculum && !showManualUpload && (
             <div className="max-w-4xl mx-auto animate-slide-up">
