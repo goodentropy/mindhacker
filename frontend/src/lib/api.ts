@@ -1,6 +1,7 @@
 import { ChatResponse, UploadResponse, SessionData, ProgressData, Curriculum } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const CHAT_URL = process.env.NEXT_PUBLIC_CHAT_URL || '';
 const FETCH_TIMEOUT_MS = 120_000;
 
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
@@ -29,6 +30,31 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export async function sendMessage(sessionId: string, message: string): Promise<ChatResponse> {
+  // Use Lambda Function URL directly to bypass API Gateway 30s timeout
+  if (CHAT_URL) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const res = await fetch(CHAT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, message }),
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: 'Request failed' }));
+        throw new Error(error.error || `HTTP ${res.status}`);
+      }
+      return res.json();
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        throw new Error('Request timed out — is the backend running?');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
   return fetchAPI<ChatResponse>('/api/chat', {
     method: 'POST',
     body: JSON.stringify({ session_id: sessionId, message }),

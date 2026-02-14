@@ -61,6 +61,7 @@ Resources:
       FunctionName: mindhacker-chat
       Handler: handlers/chat.lambda_handler
       Description: Handles chat interactions with emotionally intelligent responses
+      Timeout: 120
       Role: !GetAtt LambdaExecutionRole.Arn
       Events:
         PostChat:
@@ -284,6 +285,10 @@ Outputs:
   ApiUrl:
     Description: URL of the MindHacker HTTP API
     Value: !Sub 'https://${MindHackerApi}.execute-api.${AWS::Region}.amazonaws.com/prod'
+
+  ChatFunctionUrl:
+    Description: Direct Lambda Function URL for chat (bypasses API Gateway 30s timeout)
+    Value: ''
 
   CloudFrontUrl:
     Description: URL of the CloudFront distribution for the frontend
